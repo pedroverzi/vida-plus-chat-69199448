@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Send, Bot } from "lucide-react";
+import { X, Send, Bot, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,7 @@ interface Message {
   text: string;
   sender: "bot" | "user";
   options?: string[];
+  showBackButton?: boolean;
 }
 
 interface ChatbotDrawerProps {
@@ -16,40 +17,48 @@ interface ChatbotDrawerProps {
   onClose: () => void;
 }
 
+type FlowState = 
+  | "menu"
+  | "agendamento_nome"
+  | "agendamento_email"
+  | "agendamento_cpf"
+  | "agendamento_horario"
+  | "cancelamento_cpf"
+  | "cancelamento_motivo";
+
 const ChatbotDrawer = ({ isOpen, onClose }: ChatbotDrawerProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [flowState, setFlowState] = useState<FlowState>("menu");
+  const [userData, setUserData] = useState({
+    nome: "",
+    email: "",
+    cpf: "",
+    horario: "",
+  });
+  const [inputValue, setInputValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const chatFlow = {
-    initial: {
-      text: "Olá! Sou o assistente virtual da Clínica Vida+. Como posso ajudar?",
-      options: [
-        "Agendar uma consulta",
-        "Ver horários disponíveis",
-        "Saber especialidades",
-        "Falar com atendente",
-        "Cancelar ou remarcar consulta"
-      ]
-    },
-    responses: {
-      "Agendar uma consulta": "Para agendar sua consulta, por favor informe seu nome completo e o horário desejado. Nossa equipe entrará em contato em breve para confirmar!",
-      "Ver horários disponíveis": "📅 Horários disponíveis esta semana:\n\n• Segunda a Sexta: 08h - 18h\n• Sábado: 08h - 12h\n\nQual horário prefere?",
-      "Saber especialidades": "🏥 Especialidades atendidas:\n\n• Clínico Geral\n• Pediatria\n• Dermatologia\n• Cardiologia\n• Ortopedia\n\nQual especialidade você precisa?",
-      "Falar com atendente": "📞 Conectando você com um atendente humano... Por favor, aguarde alguns instantes. Em breve você será atendido!",
-      "Cancelar ou remarcar consulta": "Para cancelar ou remarcar sua consulta, informe seu nome completo e a data da consulta agendada. Vamos ajudar você!"
-    }
-  };
+  const menuOptions = [
+    "Agendar uma consulta",
+    "Ver horários disponíveis",
+    "Saber especialidades",
+    "Falar com atendente",
+    "Cancelar ou remarcar consulta"
+  ];
+
+  const horariosDisponiveis = [
+    "Segunda 09:00",
+    "Segunda 14:00",
+    "Terça 10:00",
+    "Quarta 15:00",
+    "Quinta 11:00",
+    "Sexta 16:00"
+  ];
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setTimeout(() => {
-        setMessages([{
-          id: Date.now(),
-          text: chatFlow.initial.text,
-          sender: "bot",
-          options: chatFlow.initial.options
-        }]);
+        showMenu();
       }, 500);
     }
   }, [isOpen]);
@@ -60,25 +69,144 @@ const ChatbotDrawer = ({ isOpen, onClose }: ChatbotDrawerProps) => {
     }
   }, [messages]);
 
-  const handleOptionClick = (option: string) => {
+  const showMenu = () => {
+    setFlowState("menu");
+    setMessages([{
+      id: Date.now(),
+      text: "Olá! Sou o assistente virtual da Clínica Vida+. Como posso ajudar?",
+      sender: "bot",
+      options: menuOptions
+    }]);
+  };
+
+  const addBotMessage = (text: string, options?: string[], showBackButton = true) => {
+    const botMessage: Message = {
+      id: Date.now(),
+      text,
+      sender: "bot",
+      options,
+      showBackButton
+    };
+    setMessages(prev => [...prev, botMessage]);
+  };
+
+  const addUserMessage = (text: string) => {
     const userMessage: Message = {
       id: Date.now(),
-      text: option,
+      text,
       sender: "user"
     };
-
     setMessages(prev => [...prev, userMessage]);
+  };
+
+  const handleBackToMenu = () => {
+    setUserData({ nome: "", email: "", cpf: "", horario: "" });
+    setInputValue("");
+    setTimeout(() => {
+      addBotMessage(
+        "Voltando ao menu principal...",
+        menuOptions,
+        false
+      );
+      setFlowState("menu");
+    }, 300);
+  };
+
+  const handleOptionClick = (option: string) => {
+    addUserMessage(option);
 
     setTimeout(() => {
-      const botResponse: Message = {
-        id: Date.now() + 1,
-        text: chatFlow.responses[option as keyof typeof chatFlow.responses],
-        sender: "bot",
-        options: chatFlow.initial.options
-      };
-      setMessages(prev => [...prev, botResponse]);
+      if (option === "Agendar uma consulta") {
+        setFlowState("agendamento_nome");
+        addBotMessage("Perfeito! Vamos agendar sua consulta. Para começar, qual é o seu nome completo?");
+      } else if (option === "Ver horários disponíveis") {
+        addBotMessage(
+          "📅 Horários de funcionamento da Clínica Vida+:\n\n• Segunda a Sexta: 08h00 - 18h00\n• Sábado: 08h00 - 12h00\n• Domingo: Fechado\n\nEstamos prontos para te atender!",
+          menuOptions
+        );
+        setFlowState("menu");
+      } else if (option === "Saber especialidades") {
+        addBotMessage(
+          "🏥 Sobre a Clínica Vida+:\n\nSomos uma clínica moderna com atendimento de excelência! Contamos com profissionais especializados nas seguintes áreas:\n\n• 👨‍⚕️ Clínico Geral - Consultas de rotina e check-ups\n• 👶 Pediatria - Cuidados com a saúde infantil\n• 💆 Dermatologia - Tratamentos de pele, cabelo e unhas\n• ❤️ Cardiologia - Saúde do coração\n• 🦴 Ortopedia - Tratamento de ossos e articulações\n• 🧠 Neurologia - Saúde neurológica\n• 🔬 Exames Laboratoriais - Análises clínicas completas\n\nTodos os nossos médicos são certificados e atualizados com as melhores práticas da medicina moderna.",
+          menuOptions
+        );
+        setFlowState("menu");
+      } else if (option === "Falar com atendente") {
+        addBotMessage(
+          "📞 Conectando você com um atendente humano... Por favor, aguarde alguns instantes. Em breve você será atendido!",
+          menuOptions
+        );
+        setFlowState("menu");
+      } else if (option === "Cancelar ou remarcar consulta") {
+        setFlowState("cancelamento_cpf");
+        addBotMessage("Para localizar sua consulta, por favor informe seu CPF (apenas números):");
+      }
     }, 800);
   };
+
+  const handleSendMessage = () => {
+    if (!inputValue.trim()) return;
+
+    addUserMessage(inputValue);
+    const value = inputValue.trim();
+    setInputValue("");
+
+    setTimeout(() => {
+      if (flowState === "agendamento_nome") {
+        setUserData(prev => ({ ...prev, nome: value }));
+        setFlowState("agendamento_email");
+        addBotMessage(`Muito bem, ${value}! Agora, qual é o seu e-mail?`);
+      } else if (flowState === "agendamento_email") {
+        setUserData(prev => ({ ...prev, email: value }));
+        setFlowState("agendamento_cpf");
+        addBotMessage("Ótimo! Para finalizar, informe seu CPF (apenas números):");
+      } else if (flowState === "agendamento_cpf") {
+        setUserData(prev => ({ ...prev, cpf: value }));
+        setFlowState("agendamento_horario");
+        addBotMessage(
+          "Perfeito! Agora selecione um dos horários disponíveis:",
+          horariosDisponiveis
+        );
+      } else if (flowState === "cancelamento_cpf") {
+        const cpfConsulta = value;
+        const dataFicticia = "15/12/2025 às 14:30";
+        setUserData(prev => ({ ...prev, cpf: cpfConsulta }));
+        setFlowState("cancelamento_motivo");
+        addBotMessage(
+          `✅ Consulta encontrada!\n\n📅 Data: ${dataFicticia}\n👨‍⚕️ Especialidade: Cardiologia\n🏥 Dr. Carlos Silva\n\nPor favor, informe o motivo do cancelamento:`
+        );
+      } else if (flowState === "cancelamento_motivo") {
+        addBotMessage(
+          `✅ Consulta cancelada com sucesso!\n\nMotivo registrado: "${value}"\n\nSe precisar remarcar, é só voltar ao menu e escolher "Agendar uma consulta".`,
+          menuOptions
+        );
+        setFlowState("menu");
+        setUserData({ nome: "", email: "", cpf: "", horario: "" });
+      }
+    }, 800);
+  };
+
+  const handleHorarioClick = (horario: string) => {
+    addUserMessage(horario);
+    setUserData(prev => ({ ...prev, horario }));
+
+    setTimeout(() => {
+      addBotMessage(
+        `✅ Consulta agendada com sucesso!\n\n👤 Nome: ${userData.nome}\n📧 E-mail: ${userData.email}\n📱 CPF: ${userData.cpf}\n📅 Horário: ${horario}\n\n🎉 Você receberá uma confirmação por e-mail em breve. Obrigado por escolher a Clínica Vida+!`,
+        menuOptions
+      );
+      setFlowState("menu");
+      setUserData({ nome: "", email: "", cpf: "", horario: "" });
+    }, 800);
+  };
+
+  const isInputEnabled = [
+    "agendamento_nome",
+    "agendamento_email",
+    "agendamento_cpf",
+    "cancelamento_cpf",
+    "cancelamento_motivo"
+  ].includes(flowState);
 
   return (
     <>
@@ -145,7 +273,13 @@ const ChatbotDrawer = ({ isOpen, onClose }: ChatbotDrawerProps) => {
                       {message.options.map((option, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleOptionClick(option)}
+                          onClick={() => {
+                            if (flowState === "agendamento_horario") {
+                              handleHorarioClick(option);
+                            } else {
+                              handleOptionClick(option);
+                            }
+                          }}
                           className="w-full text-left px-4 py-2.5 rounded-xl border-2 border-primary/20 hover:border-primary hover:bg-accent transition-all duration-200 text-sm font-medium text-foreground"
                         >
                           {option}
@@ -153,25 +287,50 @@ const ChatbotDrawer = ({ isOpen, onClose }: ChatbotDrawerProps) => {
                       ))}
                     </div>
                   )}
+
+                  {/* Back to Menu Button */}
+                  {message.showBackButton && message.sender === "bot" && flowState !== "menu" && (
+                    <div className="mt-3">
+                      <button
+                        onClick={handleBackToMenu}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all duration-200 text-sm font-medium"
+                      >
+                        <Home className="w-4 h-4" />
+                        Voltar ao Menu
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </ScrollArea>
 
-          {/* Input (decorativo) */}
+          {/* Input */}
           <div className="p-4 border-t border-border">
             <div className="flex gap-2">
               <Input
-                placeholder="Digite sua mensagem..."
+                placeholder={isInputEnabled ? "Digite sua mensagem..." : "Use as opções acima"}
                 className="flex-1"
-                disabled
+                disabled={!isInputEnabled}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && isInputEnabled) {
+                    handleSendMessage();
+                  }
+                }}
               />
-              <Button size="icon" className="shrink-0" disabled>
+              <Button 
+                size="icon" 
+                className="shrink-0" 
+                disabled={!isInputEnabled || !inputValue.trim()}
+                onClick={handleSendMessage}
+              >
                 <Send className="w-4 h-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
-              Use as opções acima para interagir
+              {isInputEnabled ? "Digite e pressione Enter ou clique em enviar" : "Use as opções acima para interagir"}
             </p>
           </div>
         </div>
